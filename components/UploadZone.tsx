@@ -23,7 +23,7 @@ export default function UploadZone() {
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await res.json() as { datasetId?: string; meta?: DatasetMeta; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Upload failed.");
-      router.push(`/dataset/${data.datasetId}`);
+      router.push(`/dataset/${data.datasetId}?from=upload`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");
       setUploading(false);

@@ -22,7 +22,7 @@ export default async function DatasetPreview({ params }: { params: Promise<{ id:
           <p className="text-xs text-gray-500">{meta.rowCount.toLocaleString()} rows · {meta.columns.length} columns · imported {new Date(meta.createdAt).toLocaleDateString()}</p>
         </div>
         <Link
-          href={`/dataset/${id}/workspace`}
+          href={`/workspace?id=${id}`}
           className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
         >
           Start asking →

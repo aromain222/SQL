@@ -38,3 +38,13 @@
 {"type":"edit","file":"/Users/averyromain/SQL/lib/llm.ts","timestamp":1779077763766,"sessionId":null}
 {"type":"edit","file":"/Users/averyromain/SQL/lib/insight.ts","timestamp":1779077767559,"sessionId":null}
 {"type":"edit","file":"/Users/averyromain/SQL/lib/insight.ts","timestamp":1779077771705,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/components/ResultsPanel.tsx","timestamp":1779077952331,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/components/ResultsPanel.tsx","timestamp":1779131795755,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/api/datasets/route.ts","timestamp":1779132034919,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/api/dataset/[id]/route.ts","timestamp":1779132044487,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/components/DatasetSidebar.tsx","timestamp":1779132067933,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/components/Workspace.tsx","timestamp":1779132105612,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/workspace/page.tsx","timestamp":1779132115845,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/components/UploadZone.tsx","timestamp":1779132119748,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/dataset/[id]/page.tsx","timestamp":1779132127952,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/dataset/[id]/workspace/page.tsx","timestamp":1779132145589,"sessionId":null}
