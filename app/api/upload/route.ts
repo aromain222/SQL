@@ -1,0 +1,53 @@
+import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
+import fs from "fs";
+import path from "path";
+import { parseCSV } from "@/lib/csv";
+import { openDb, createTable } from "@/lib/db";
+import { saveMeta } from "@/lib/meta";
+import type { DatasetMeta } from "@/types";
+
+export const runtime = "nodejs";
+
+export async function POST(req: NextRequest) {
+  try {
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
+    if (!file) return NextResponse.json({ error: "No file provided." }, { status: 400 });
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext !== "csv") return NextResponse.json({ error: "Only CSV files are supported." }, { status: 400 });
+
+    if (file.size > 50 * 1024 * 1024) {
+      return NextResponse.json({ error: "File too large. Maximum size is 50 MB." }, { status: 400 });
+    }
+
+    const text = await file.text();
+    const { columns, rows, warnings } = parseCSV(text);
+
+    const id = randomUUID();
+    const tableName = "dataset";
+    const dir = path.join(process.cwd(), "uploads", id);
+    fs.mkdirSync(dir, { recursive: true });
+
+    const db = openDb(id);
+    createTable(db, tableName, columns, rows);
+    db.close();
+
+    const meta: DatasetMeta = {
+      id,
+      name: file.name.replace(/\.csv$/i, ""),
+      rowCount: rows.length,
+      columns,
+      tableName,
+      createdAt: new Date().toISOString(),
+      warnings,
+    };
+    saveMeta(meta);
+
+    return NextResponse.json({ datasetId: id, meta });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Upload failed.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
