@@ -1,15 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { QueryResult } from "@/types";
 import ResultChart from "./ResultChart";
 
 type Tab = "answer" | "table" | "chart" | "sql";
 
+function exportCSV(rows: Record<string, unknown>[], columns: string[], filename: string) {
+  const escape = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"`
+      : s;
+  };
+  const lines = [
+    columns.map(escape).join(","),
+    ...rows.map((r) => columns.map((c) => escape(r[c])).join(",")),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = useCallback(async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [text]);
+  return (
+    <button
+      onClick={copy}
+      className="text-xs px-2.5 py-1 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition-colors"
+    >
+      {copied ? "Copied!" : "Copy SQL"}
+    </button>
+  );
+}
+
 export default function ResultsPanel({ result }: { result: QueryResult }) {
   const [tab, setTab] = useState<Tab>("answer");
   const [showInsight, setShowInsight] = useState(false);
   const hasChart = result.chartRecommendation.type !== "none";
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "answer", label: "Answer" },
     { id: "table", label: `Table (${result.rowCount})` },
@@ -19,21 +57,36 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
 
   return (
     <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
-      {/* Tab bar */}
-      <div className="flex border-b border-gray-100">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2.5 text-xs font-medium transition-colors ${
-              tab === t.id
-                ? "border-b-2 border-blue-500 text-blue-600 bg-white"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Tab bar + action buttons */}
+      <div className="flex items-center border-b border-gray-100">
+        <div className="flex flex-1">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`px-4 py-2.5 text-xs font-medium transition-colors ${
+                tab === t.id
+                  ? "border-b-2 border-blue-500 text-blue-600 bg-white"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Action buttons — always visible */}
+        <div className="flex items-center gap-2 px-3">
+          {result.sql && <CopyButton text={result.sql} />}
+          {result.rows.length > 0 && (
+            <button
+              onClick={() => exportCSV(result.rows, result.columns, "query-results.csv")}
+              className="text-xs px-2.5 py-1 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition-colors"
+            >
+              Export CSV
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="p-4">
@@ -70,16 +123,16 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
               <table className="data-table">
                 <thead>
                   <tr>
-                    {result.columns.map((col) => (
-                      <th key={col}>{col}</th>
-                    ))}
+                    {result.columns.map((col) => <th key={col}>{col}</th>)}
                   </tr>
                 </thead>
                 <tbody>
                   {result.rows.map((row, i) => (
                     <tr key={i}>
                       {result.columns.map((col) => (
-                        <td key={col}>{row[col] == null ? <span className="text-gray-300">—</span> : String(row[col])}</td>
+                        <td key={col}>
+                          {row[col] == null ? <span className="text-gray-300">—</span> : String(row[col])}
+                        </td>
                       ))}
                     </tr>
                   ))}
