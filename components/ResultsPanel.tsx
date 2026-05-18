@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import type { QueryResult } from "@/types";
+import { useState, useCallback, useMemo } from "react";
+import type { QueryResult, ChartRecommendation } from "@/types";
 import ResultChart from "./ResultChart";
 
 type Tab = "answer" | "table" | "chart" | "sql";
+type ChartType = "bar" | "line" | "pie";
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function exportCSV(rows: Record<string, unknown>[], columns: string[], filename: string) {
   const escape = (v: unknown) => {
@@ -26,6 +29,28 @@ function exportCSV(rows: Record<string, unknown>[], columns: string[], filename:
   URL.revokeObjectURL(url);
 }
 
+function isNumericCol(col: string, rows: Record<string, unknown>[]): boolean {
+  const sample = rows.slice(0, 20).map((r) => r[col]).filter((v) => v != null);
+  return sample.length > 0 && sample.every((v) => !isNaN(Number(v)));
+}
+
+function inferAxes(
+  columns: string[],
+  rows: Record<string, unknown>[]
+): { x: string; y: string } | null {
+  if (columns.length < 2) return null;
+  const numeric = columns.filter((c) => isNumericCol(c, rows));
+  const categorical = columns.filter((c) => !isNumericCol(c, rows));
+  if (numeric.length === 0) return null;
+  return { x: categorical[0] ?? columns[0], y: numeric[0] };
+}
+
+function canChart(columns: string[], rows: Record<string, unknown>[]): boolean {
+  return rows.length > 0 && inferAxes(columns, rows) !== null;
+}
+
+// ─── subcomponents ────────────────────────────────────────────────────────────
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const copy = useCallback(async () => {
@@ -43,15 +68,73 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+const CHART_TYPES: { type: ChartType; label: string }[] = [
+  { type: "bar", label: "Bar" },
+  { type: "line", label: "Line" },
+  { type: "pie", label: "Pie" },
+];
+
+function ChartTypeSwitcher({
+  value,
+  onChange,
+}: {
+  value: ChartType;
+  onChange: (t: ChartType) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1 mb-4">
+      {CHART_TYPES.map(({ type, label }) => (
+        <button
+          key={type}
+          onClick={() => onChange(type)}
+          className={`px-3 py-1 text-xs font-medium rounded-full border transition-colors ${
+            value === type
+              ? "bg-blue-600 text-white border-blue-600"
+              : "bg-white text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-700"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── main component ───────────────────────────────────────────────────────────
+
 export default function ResultsPanel({ result }: { result: QueryResult }) {
+  const chartable = useMemo(
+    () => canChart(result.columns, result.rows),
+    [result.columns, result.rows]
+  );
+
+  const axes = useMemo(
+    () =>
+      result.chartRecommendation.x && result.chartRecommendation.y
+        ? { x: result.chartRecommendation.x, y: result.chartRecommendation.y }
+        : inferAxes(result.columns, result.rows),
+    [result]
+  );
+
+  const llmType =
+    result.chartRecommendation.type !== "none"
+      ? (result.chartRecommendation.type as ChartType)
+      : "bar";
+
   const [tab, setTab] = useState<Tab>("answer");
   const [showInsight, setShowInsight] = useState(false);
-  const hasChart = result.chartRecommendation.type !== "none";
+  const [chartType, setChartType] = useState<ChartType>(llmType);
+
+  const activeChart: ChartRecommendation = {
+    type: chartable ? chartType : "none",
+    x: axes?.x,
+    y: axes?.y,
+  };
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "answer", label: "Answer" },
     { id: "table", label: `Table (${result.rowCount})` },
-    ...(hasChart ? [{ id: "chart" as Tab, label: "Chart" }] : []),
+    ...(chartable ? [{ id: "chart" as Tab, label: "Chart" }] : []),
     { id: "sql", label: "SQL" },
   ];
 
@@ -74,8 +157,6 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
             </button>
           ))}
         </div>
-
-        {/* Action buttons — always visible */}
         <div className="flex items-center gap-2 px-3">
           {result.sql && <CopyButton text={result.sql} />}
           {result.rows.length > 0 && (
@@ -122,16 +203,16 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
-                  <tr>
-                    {result.columns.map((col) => <th key={col}>{col}</th>)}
-                  </tr>
+                  <tr>{result.columns.map((col) => <th key={col}>{col}</th>)}</tr>
                 </thead>
                 <tbody>
                   {result.rows.map((row, i) => (
                     <tr key={i}>
                       {result.columns.map((col) => (
                         <td key={col}>
-                          {row[col] == null ? <span className="text-gray-300">—</span> : String(row[col])}
+                          {row[col] == null
+                            ? <span className="text-gray-300">—</span>
+                            : String(row[col])}
                         </td>
                       ))}
                     </tr>
@@ -143,7 +224,10 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
         )}
 
         {tab === "chart" && (
-          <ResultChart rows={result.rows} chart={result.chartRecommendation} />
+          <div>
+            <ChartTypeSwitcher value={chartType} onChange={setChartType} />
+            <ResultChart rows={result.rows} chart={activeChart} />
+          </div>
         )}
 
         {tab === "sql" && (
