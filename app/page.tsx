@@ -25,7 +25,7 @@ export default function Home() {
         <div className="flex flex-wrap justify-center gap-2 mb-10">
           {EXAMPLES.map((q) => (
             <span key={q} className="text-xs px-3 py-1.5 rounded-full border border-gray-200 bg-white text-gray-500">
-              "{q}"
+              &ldquo;{q}&rdquo;
             </span>
           ))}
         </div>

@@ -8,8 +8,11 @@ export function getDbPath(datasetId: string): string {
   return path.join(datasetDir(datasetId), "data.db");
 }
 
-export function openDb(datasetId: string): Database.Database {
-  return new Database(getDbPath(datasetId));
+export function openDb(datasetId: string, options: Database.Options = {}): Database.Database {
+  return new Database(getDbPath(datasetId), {
+    timeout: 1000,
+    ...options,
+  });
 }
 
 // dates stored as TEXT in SQLite for maximum flexibility
@@ -53,6 +56,7 @@ export function runQuery(
   db: Database.Database,
   sql: string
 ): { rows: Record<string, unknown>[]; columns: string[] } {
+  db.pragma("query_only = ON");
   const stmt = db.prepare(sql);
   const rows = stmt.all() as Record<string, unknown>[];
   const columns =

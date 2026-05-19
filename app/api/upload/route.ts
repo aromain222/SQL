@@ -6,6 +6,7 @@ import { parseCSV } from "@/lib/csv";
 import { openDb, createTable } from "@/lib/db";
 import { saveMeta } from "@/lib/meta";
 import type { DatasetMeta } from "@/types";
+import { MAX_UPLOAD_BYTES } from "@/lib/limits";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext !== "csv") return NextResponse.json({ error: "Only CSV files are supported." }, { status: 400 });
 
-    if (file.size > 50 * 1024 * 1024) {
+    if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json({ error: "File too large. Maximum size is 50 MB." }, { status: 400 });
     }
 

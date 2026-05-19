@@ -4,6 +4,8 @@ import { openDb, runQuery } from "@/lib/db";
 import { generateSQL } from "@/lib/llm";
 import { validateSQL, SQLValidationError } from "@/lib/sql-validator";
 import { generateInsight } from "@/lib/insight";
+import { DatasetIdError } from "@/lib/dataset-id";
+import { INSIGHT_TIMEOUT_MS, LLM_TIMEOUT_MS, MAX_QUESTION_CHARS } from "@/lib/limits";
 
 export const runtime = "nodejs";
 
@@ -19,14 +21,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Sanitize question length (prompt injection mitigation)
-    if (question.length > 1000) {
+    if (question.length > MAX_QUESTION_CHARS) {
       return NextResponse.json({ error: "Question is too long." }, { status: 400 });
     }
 
     const meta = loadMeta(datasetId);
     if (!meta) return NextResponse.json({ error: "Dataset not found." }, { status: 404 });
 
-    const llmResult = await generateSQL(question, meta.tableName, meta.columns);
+    const llmResult = await withTimeout(
+      generateSQL(question, meta.tableName, meta.columns),
+      LLM_TIMEOUT_MS,
+      "SQL generation timed out. Try a simpler question.",
+    );
 
     if (!llmResult.sql) {
       return NextResponse.json({
@@ -53,7 +59,7 @@ export async function POST(req: NextRequest) {
       throw e;
     }
 
-    const db = openDb(datasetId);
+    const db = openDb(datasetId, { readonly: true, fileMustExist: true });
     const { rows, columns } = runQuery(db, safeSQL);
     db.close();
 
@@ -62,7 +68,11 @@ export async function POST(req: NextRequest) {
         ? "No rows matched your query."
         : llmResult.explanation;
 
-    const insight = await generateInsight(question, rows, columns, meta.columns);
+    const insight = await withTimeout(
+      generateInsight(question, rows, columns, meta.columns),
+      INSIGHT_TIMEOUT_MS,
+      "",
+    ).catch(() => "");
 
     return NextResponse.json({
       answer,
@@ -74,7 +84,17 @@ export async function POST(req: NextRequest) {
       insight,
     });
   } catch (err) {
+    if (err instanceof DatasetIdError) {
+      return NextResponse.json({ error: "Invalid dataset id." }, { status: 400 });
+    }
     const message = err instanceof Error ? err.message : "Query failed.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs)),
+  ]);
 }

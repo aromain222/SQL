@@ -2,7 +2,9 @@ import OpenAI from "openai";
 import type { ColumnMeta, LLMResponse } from "@/types";
 
 function getClient() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured.");
+  return new OpenAI({ apiKey });
 }
 
 export async function generateSQL(
@@ -63,9 +65,18 @@ Return ONLY this JSON (no markdown, no explanation outside JSON):
     throw new Error("LLM returned invalid JSON.");
   }
 
+  const chartRecommendation = parsed.chartRecommendation;
+  const allowedChartTypes = new Set(["bar", "line", "pie", "none"]);
+
   return {
     sql: typeof parsed.sql === "string" ? parsed.sql : "",
     explanation: typeof parsed.explanation === "string" ? parsed.explanation : "",
-    chartRecommendation: parsed.chartRecommendation ?? { type: "none" },
+    chartRecommendation:
+      chartRecommendation &&
+      typeof chartRecommendation === "object" &&
+      "type" in chartRecommendation &&
+      allowedChartTypes.has(String(chartRecommendation.type))
+        ? parsed.chartRecommendation!
+        : { type: "none" },
   };
 }

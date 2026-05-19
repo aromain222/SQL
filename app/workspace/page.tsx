@@ -4,6 +4,7 @@ import { uploadsRoot } from "@/lib/paths";
 import Workspace from "@/components/Workspace";
 import type { DatasetMeta } from "@/types";
 import fs from "fs";
+import { DatasetIdError } from "@/lib/dataset-id";
 
 function loadAllDatasets(): DatasetMeta[] {
   const uploadsDir = uploadsRoot();
@@ -13,8 +14,12 @@ function loadAllDatasets(): DatasetMeta[] {
     .map((d) => d.name);
   const datasets: DatasetMeta[] = [];
   for (const id of dirs) {
-    const meta = loadMeta(id);
-    if (meta) datasets.push(meta);
+    try {
+      const meta = loadMeta(id);
+      if (meta) datasets.push(meta);
+    } catch (err) {
+      if (!(err instanceof DatasetIdError)) throw err;
+    }
   }
   return datasets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }

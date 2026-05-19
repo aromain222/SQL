@@ -1,4 +1,5 @@
 import path from "path";
+import { assertDatasetId } from "@/lib/dataset-id";
 
 export function uploadsRoot(): string {
   // Vercel / AWS Lambda: process.cwd() is read-only /var/task — use /tmp instead
@@ -9,5 +10,5 @@ export function uploadsRoot(): string {
 }
 
 export function datasetDir(id: string): string {
-  return path.join(uploadsRoot(), id);
+  return path.join(uploadsRoot(), assertDatasetId(id));
 }

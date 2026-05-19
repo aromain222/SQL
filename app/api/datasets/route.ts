@@ -3,6 +3,7 @@ import fs from "fs";
 import { uploadsRoot } from "@/lib/paths";
 import { loadMeta } from "@/lib/meta";
 import type { DatasetMeta } from "@/types";
+import { DatasetIdError } from "@/lib/dataset-id";
 
 export const runtime = "nodejs";
 
@@ -16,8 +17,12 @@ export async function GET() {
 
   const datasets: DatasetMeta[] = [];
   for (const id of dirs) {
-    const meta = loadMeta(id);
-    if (meta) datasets.push(meta);
+    try {
+      const meta = loadMeta(id);
+      if (meta) datasets.push(meta);
+    } catch (err) {
+      if (!(err instanceof DatasetIdError)) throw err;
+    }
   }
 
   datasets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

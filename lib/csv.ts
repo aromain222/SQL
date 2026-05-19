@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import type { ColumnMeta, ColumnType, CleaningWarning } from "@/types";
+import { MAX_COLUMNS, MAX_ROWS } from "@/lib/limits";
 
 // ─── name sanitization ───────────────────────────────────────────────────────
 
@@ -92,8 +93,17 @@ export function parseCSV(csvText: string): ParsedCSV {
 
   const data = result.data as string[][];
   if (data.length < 2) throw new Error("CSV must have a header row and at least one data row.");
+  if (data.length - 1 > MAX_ROWS) {
+    throw new Error(`CSV has too many rows. Maximum is ${MAX_ROWS.toLocaleString()} rows.`);
+  }
 
   const rawHeaders = data[0].map((h) => h.trim());
+  if (rawHeaders.length > MAX_COLUMNS) {
+    throw new Error(`CSV has too many columns. Maximum is ${MAX_COLUMNS.toLocaleString()} columns.`);
+  }
+  if (rawHeaders.length === 0 || rawHeaders.every((h) => h === "")) {
+    throw new Error("CSV must include at least one named column.");
+  }
   const dataRows = data.slice(1);
   const warnings: CleaningWarning[] = [];
 
@@ -109,7 +119,7 @@ export function parseCSV(csvText: string): ParsedCSV {
       warnings.push({ column: h, level: "warning", message: `Duplicate column name "${h}" — disambiguated automatically.` });
     }
 
-    let base = sanitizeName(h) || `col_${i}`;
+    const base = sanitizeName(h) || `col_${i}`;
     const count = seenSanitized.get(base) ?? 0;
     seenSanitized.set(base, count + 1);
     const sanitizedName = count === 0 ? base : `${base}_${count}`;

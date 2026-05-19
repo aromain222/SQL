@@ -1,15 +1,23 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { loadMeta } from "@/lib/meta";
 import { openDb, runQuery } from "@/lib/db";
 import WarningBanner from "@/components/WarningBanner";
+import { DatasetIdError } from "@/lib/dataset-id";
+import type { DatasetMeta } from "@/types";
 
 export default async function DatasetPreview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const meta = loadMeta(id);
+  let meta: DatasetMeta | null;
+  try {
+    meta = loadMeta(id);
+  } catch (err) {
+    if (err instanceof DatasetIdError) notFound();
+    throw err;
+  }
   if (!meta) notFound();
 
-  const db = openDb(id);
+  const db = openDb(id, { readonly: true, fileMustExist: true });
   const { rows } = runQuery(db, `SELECT * FROM "${meta.tableName}" LIMIT 20`);
   db.close();
 
