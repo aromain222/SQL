@@ -41,7 +41,11 @@ export default async function WorkspacePage({
         </div>
         <Link href="/" className="text-xs text-gray-400 hover:text-gray-600">Upload new file</Link>
       </header>
-      <Workspace initialDatasets={datasets} initialActiveId={initialActiveId} />
+      <Workspace
+        key={`${initialActiveId ?? "none"}:${datasets.length}`}
+        initialDatasets={datasets}
+        initialActiveId={initialActiveId}
+      />
     </div>
   );
 }

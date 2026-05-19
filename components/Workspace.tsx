@@ -44,7 +44,8 @@ export default function Workspace({ initialDatasets, initialActiveId }: Props) {
     setActiveId(id);
     setQuestion("");
     setError("");
-  }, []);
+    router.replace(`/workspace?id=${id}`);
+  }, [router]);
 
   const submit = useCallback(async (q: string) => {
     if (!activeId || !q.trim() || loading) return;

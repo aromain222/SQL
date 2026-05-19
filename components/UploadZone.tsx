@@ -1,11 +1,9 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useRouter } from "next/navigation";
 import type { DatasetMeta } from "@/types";
 
 export default function UploadZone() {
-  const router = useRouter();
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -23,12 +21,12 @@ export default function UploadZone() {
       const res = await fetch("/api/upload", { method: "POST", body: fd });
       const data = await res.json() as { datasetId?: string; meta?: DatasetMeta; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Upload failed.");
-      router.push(`/dataset/${data.datasetId}?from=upload`);
+      window.location.assign(`/workspace?id=${data.datasetId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");
       setUploading(false);
     }
-  }, [router]);
+  }, []);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
