@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { DatasetMeta, QueryResult, HistoryEntry } from "@/types";
 import SchemaPanel from "./SchemaPanel";
@@ -16,7 +16,7 @@ function suggestedQuestions(columns: DatasetMeta["columns"]): string[] {
   if (dateCols[0] && numericCols[0]) qs.push(`How does ${numericCols[0].originalName} change over ${dateCols[0].originalName}?`);
   if (numericCols[0]) qs.push(`What is the average ${numericCols[0].originalName}?`);
   qs.push("How many rows are in this dataset?");
-  return qs.slice(0, 4);
+  return qs.slice(0, 5);
 }
 
 interface Props {
@@ -108,7 +108,6 @@ export default function Workspace({ initialDatasets, initialActiveId }: Props) {
 
   return (
     <div className="flex h-[calc(100vh-57px)]">
-      {/* Dataset sidebar */}
       <DatasetSidebar
         datasets={datasets}
         activeId={activeId}
@@ -119,68 +118,101 @@ export default function Workspace({ initialDatasets, initialActiveId }: Props) {
         historyCount={historyCount}
       />
 
-      {/* Center */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden bg-[#f8f9fa]">
         {!activeMeta ? (
           <div className="flex-1 flex items-center justify-center text-center px-6">
             <div>
-              <p className="text-gray-400 text-sm mb-3">No dataset selected.</p>
+              <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <p className="text-gray-700 font-medium mb-1">No dataset loaded</p>
+              <p className="text-gray-400 text-sm mb-4">Upload a CSV to start asking questions</p>
               <button
                 onClick={handleUploadClick}
                 className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Upload a dataset
+                Upload a CSV
               </button>
             </div>
           </div>
         ) : (
           <>
-            {/* Query history strip */}
+            {/* Previous questions strip */}
             {activeHistory.length > 0 && (
-              <div className="border-b border-gray-100 bg-white px-4 py-2 flex items-center gap-2 overflow-x-auto shrink-0">
-                {activeHistory.map((h) => (
-                  <button
-                    key={h.id}
-                    onClick={() => setActiveHistoryId((prev) => ({ ...prev, [activeId!]: h.id }))}
-                    className={`shrink-0 text-xs px-3 py-1.5 rounded-full border transition-colors max-w-[200px] truncate ${
-                      currentHistoryId === h.id
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
-                    }`}
-                  >
-                    {h.question}
-                  </button>
-                ))}
+              <div className="border-b border-gray-200 bg-white px-4 py-2 flex items-center gap-3 overflow-x-auto shrink-0">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider shrink-0">History</span>
+                <div className="flex items-center gap-2 overflow-x-auto">
+                  {activeHistory.map((h) => (
+                    <button
+                      key={h.id}
+                      onClick={() => setActiveHistoryId((prev) => ({ ...prev, [activeId!]: h.id }))}
+                      className={`shrink-0 text-xs px-3 py-1.5 rounded-full border transition-colors max-w-[220px] truncate ${
+                        currentHistoryId === h.id
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-gray-500 border-gray-200 hover:border-blue-300 hover:text-blue-600"
+                      }`}
+                    >
+                      {h.question}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Results */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {!activeResult && (
-                <div className="max-w-xl mx-auto mt-8 text-center">
-                  <p className="text-gray-500 text-sm mb-5">
-                    Ask a question about <span className="font-medium text-gray-800">{activeMeta.name}</span>
+            {/* Results / empty state */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {loading && (
+                <div className="flex items-center justify-center gap-3 py-12 text-gray-400 text-sm">
+                  <span className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin" />
+                  Generating answer…
+                </div>
+              )}
+
+              {!loading && !activeResult && (
+                <div className="max-w-xl mx-auto mt-6">
+                  <p className="text-sm font-medium text-gray-700 mb-1">{activeMeta.name}</p>
+                  <p className="text-xs text-gray-400 mb-6">
+                    {activeMeta.rowCount.toLocaleString()} rows · {activeMeta.columns.length} columns
                   </p>
+
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Try asking</p>
                   <div className="space-y-2">
                     {suggested.map((q) => (
                       <button
                         key={q}
                         onClick={() => submit(q)}
-                        className="block w-full text-left text-sm px-4 py-2.5 rounded-lg border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 text-gray-600 hover:text-blue-700 transition-colors"
+                        className="flex items-center gap-3 w-full text-left text-sm px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-colors shadow-sm"
                       >
+                        <span className="text-gray-300 shrink-0">→</span>
                         {q}
                       </button>
                     ))}
                   </div>
+                  <p className="text-xs text-gray-400 text-center mt-5">Or type your own question below</p>
                 </div>
               )}
-              {activeResult && <ResultsPanel result={activeResult} />}
+
+              {!loading && activeResult && (
+                <div className="max-w-3xl mx-auto space-y-4">
+                  <ResultsPanel result={activeResult} />
+                  {activeHistory.length > 0 && (
+                    <p className="text-xs text-gray-400 text-center">
+                      Ask another question below, or pick a previous one from the history bar above.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {error && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+                <div className="max-w-3xl mx-auto mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
               )}
             </div>
 
-            {/* Input */}
+            {/* Input bar */}
             <div className="border-t border-gray-200 bg-white px-6 py-4 shrink-0">
               <div className="flex items-end gap-3 max-w-3xl mx-auto">
                 <textarea
@@ -189,30 +221,31 @@ export default function Workspace({ initialDatasets, initialActiveId }: Props) {
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(question); } }}
-                  placeholder={`Ask about ${activeMeta.name}…`}
-                  className="flex-1 resize-none rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                  placeholder={`Ask a question about ${activeMeta.name}…`}
+                  className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 shadow-sm"
                   disabled={loading}
                 />
                 <button
                   onClick={() => submit(question)}
                   disabled={loading || !question.trim()}
-                  className="px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                  className="px-5 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0 shadow-sm"
                 >
                   {loading ? (
                     <span className="flex items-center gap-2">
                       <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       Running
                     </span>
-                  ) : "Ask"}
+                  ) : "Ask →"}
                 </button>
               </div>
-              <p className="text-[11px] text-gray-400 text-center mt-2">Enter to submit · Shift+Enter for new line</p>
+              <p className="text-[11px] text-gray-400 text-center mt-2">
+                Press <kbd className="px-1 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">Enter</kbd> to ask · <kbd className="px-1 py-0.5 bg-gray-100 rounded text-gray-500 font-mono">Shift+Enter</kbd> for new line
+              </p>
             </div>
           </>
         )}
       </main>
 
-      {/* Schema panel */}
       {activeMeta && <SchemaPanel columns={activeMeta.columns} />}
     </div>
   );
