@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import fs from "fs";
-import path from "path";
+import { datasetDir } from "@/lib/paths";
 import { parseCSV } from "@/lib/csv";
 import { openDb, createTable } from "@/lib/db";
 import { saveMeta } from "@/lib/meta";
@@ -27,8 +27,7 @@ export async function POST(req: NextRequest) {
 
     const id = randomUUID();
     const tableName = "dataset";
-    const dir = path.join(process.cwd(), "uploads", id);
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(datasetDir(id), { recursive: true });
 
     const db = openDb(id);
     createTable(db, tableName, columns, rows);

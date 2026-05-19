@@ -48,3 +48,13 @@
 {"type":"edit","file":"/Users/averyromain/SQL/components/UploadZone.tsx","timestamp":1779132119748,"sessionId":null}
 {"type":"edit","file":"/Users/averyromain/SQL/app/dataset/[id]/page.tsx","timestamp":1779132127952,"sessionId":null}
 {"type":"edit","file":"/Users/averyromain/SQL/app/dataset/[id]/workspace/page.tsx","timestamp":1779132145589,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/example-sales.csv","timestamp":1779151743978,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/lib/paths.ts","timestamp":1779151922571,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/lib/meta.ts","timestamp":1779151944851,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/lib/db.ts","timestamp":1779151954773,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/api/datasets/route.ts","timestamp":1779151960955,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/api/dataset/[id]/route.ts","timestamp":1779151965564,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/api/dataset/[id]/route.ts","timestamp":1779151968506,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/api/upload/route.ts","timestamp":1779151975843,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/api/upload/route.ts","timestamp":1779151980110,"sessionId":null}
+{"type":"edit","file":"/Users/averyromain/SQL/app/workspace/page.tsx","timestamp":1779151993935,"sessionId":null}

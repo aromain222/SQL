@@ -1,14 +1,14 @@
 import fs from "fs";
 import path from "path";
+import { datasetDir } from "@/lib/paths";
 import type { DatasetMeta } from "@/types";
 
 function metaPath(datasetId: string): string {
-  return path.join(process.cwd(), "uploads", datasetId, "meta.json");
+  return path.join(datasetDir(datasetId), "meta.json");
 }
 
 export function saveMeta(meta: DatasetMeta): void {
-  const dir = path.join(process.cwd(), "uploads", meta.id);
-  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(datasetDir(meta.id), { recursive: true });
   fs.writeFileSync(metaPath(meta.id), JSON.stringify(meta, null, 2));
 }
 

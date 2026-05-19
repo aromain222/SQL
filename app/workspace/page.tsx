@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { loadMeta } from "@/lib/meta";
+import { uploadsRoot } from "@/lib/paths";
 import Workspace from "@/components/Workspace";
 import type { DatasetMeta } from "@/types";
 import fs from "fs";
-import path from "path";
 
 function loadAllDatasets(): DatasetMeta[] {
-  const uploadsDir = path.join(process.cwd(), "uploads");
+  const uploadsDir = uploadsRoot();
   if (!fs.existsSync(uploadsDir)) return [];
   const dirs = fs.readdirSync(uploadsDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())

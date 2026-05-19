@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
-import path from "path";
+import { datasetDir } from "@/lib/paths";
 import { loadMeta, saveMeta } from "@/lib/meta";
 import { openDb, runQuery } from "@/lib/db";
 
@@ -45,7 +45,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const dir = path.join(process.cwd(), "uploads", id);
+  const dir = datasetDir(id);
   if (!fs.existsSync(dir)) return NextResponse.json({ error: "Dataset not found." }, { status: 404 });
 
   fs.rmSync(dir, { recursive: true, force: true });

@@ -1,10 +1,11 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import { datasetDir } from "@/lib/paths";
 import type { ColumnMeta } from "@/types";
 
 export function getDbPath(datasetId: string): string {
-  return path.join(process.cwd(), "uploads", datasetId, "data.db");
+  return path.join(datasetDir(datasetId), "data.db");
 }
 
 export function openDb(datasetId: string): Database.Database {
