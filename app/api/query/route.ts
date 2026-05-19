@@ -6,11 +6,16 @@ import { validateSQL, SQLValidationError } from "@/lib/sql-validator";
 import { generateInsight } from "@/lib/insight";
 import { DatasetIdError } from "@/lib/dataset-id";
 import { INSIGHT_TIMEOUT_MS, LLM_TIMEOUT_MS, MAX_QUESTION_CHARS } from "@/lib/limits";
+import { rateLimit } from "@/lib/rate-limit";
+import { friendlyErrorMessage } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = rateLimit(req, { key: "query", limit: 60, windowMs: 60 * 60 * 1000 });
+    if (limited) return limited;
+
     const { datasetId, question } = (await req.json()) as {
       datasetId?: string;
       question?: string;
@@ -87,7 +92,7 @@ export async function POST(req: NextRequest) {
     if (err instanceof DatasetIdError) {
       return NextResponse.json({ error: "Invalid dataset id." }, { status: 400 });
     }
-    const message = err instanceof Error ? err.message : "Query failed.";
+    const message = friendlyErrorMessage(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

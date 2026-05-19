@@ -7,11 +7,16 @@ import { openDb, createTable } from "@/lib/db";
 import { saveMeta } from "@/lib/meta";
 import type { DatasetMeta } from "@/types";
 import { MAX_UPLOAD_BYTES } from "@/lib/limits";
+import { rateLimit } from "@/lib/rate-limit";
+import { friendlyErrorMessage } from "@/lib/errors";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = rateLimit(req, { key: "upload", limit: 20, windowMs: 60 * 60 * 1000 });
+    if (limited) return limited;
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "No file provided." }, { status: 400 });
@@ -47,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ datasetId: id, meta });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Upload failed.";
+    const message = friendlyErrorMessage(err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
