@@ -29,9 +29,60 @@ function exportCSV(rows: Record<string, unknown>[], columns: string[], filename:
   URL.revokeObjectURL(url);
 }
 
+function downloadMiniReport(result: QueryResult) {
+  const escapeHtml = (value: unknown) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  const previewRows = result.rows.slice(0, 50);
+  const table = previewRows.length
+    ? `<table><thead><tr>${result.columns.map((col) => `<th>${escapeHtml(col)}</th>`).join("")}</tr></thead><tbody>${previewRows.map((row) => `<tr>${result.columns.map((col) => `<td>${escapeHtml(row[col])}</td>`).join("")}</tr>`).join("")}</tbody></table>`
+    : "<p>No rows returned.</p>";
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Analysis Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 32px; color: #111827; }
+    h1 { font-size: 22px; margin-bottom: 8px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; margin-top: 24px; }
+    p { line-height: 1.5; }
+    pre { background: #f3f4f6; padding: 12px; border-radius: 8px; white-space: pre-wrap; }
+    table { border-collapse: collapse; width: 100%; font-size: 12px; }
+    th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
+    th { background: #f9fafb; }
+  </style>
+</head>
+<body>
+  <h1>Mini Analysis Report</h1>
+  <p>${escapeHtml(result.answer)}</p>
+  ${result.insight ? `<h2>Insight</h2><p>${escapeHtml(result.insight)}</p>` : ""}
+  <h2>Result Preview</h2>
+  ${table}
+  <h2>SQL</h2>
+  <pre>${escapeHtml(result.sql || "No SQL generated.")}</pre>
+</body>
+</html>`;
+  const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "analysis-report.html";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function isNumericCol(col: string, rows: Record<string, unknown>[]): boolean {
   const sample = rows.slice(0, 20).map((r) => r[col]).filter((v) => v != null);
   return sample.length > 0 && sample.every((v) => !isNaN(Number(v)));
+}
+
+function looksDateLike(value: unknown): boolean {
+  const text = String(value ?? "").trim();
+  return /^\d{4}-\d{1,2}-\d{1,2}$/.test(text) || /^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(text);
 }
 
 function inferAxes(
@@ -43,6 +94,15 @@ function inferAxes(
   const categorical = columns.filter((c) => !isNumericCol(c, rows));
   if (numeric.length === 0) return null;
   return { x: categorical[0] ?? columns[0], y: numeric[0] };
+}
+
+function inferChartType(columns: string[], rows: Record<string, unknown>[]): ChartType {
+  const axes = inferAxes(columns, rows);
+  if (!axes) return "bar";
+  const xSample = rows.slice(0, 12).map((row) => row[axes.x]).filter((value) => value != null);
+  if (xSample.length > 0 && xSample.every(looksDateLike)) return "line";
+  if (rows.length <= 6 && columns.length === 2) return "pie";
+  return "bar";
 }
 
 function canChart(columns: string[], rows: Record<string, unknown>[]): boolean {
@@ -103,23 +163,24 @@ function ChartTypeSwitcher({
 // ─── main component ───────────────────────────────────────────────────────────
 
 export default function ResultsPanel({ result }: { result: QueryResult }) {
+  const polishedRows = useMemo(() => polishRows(result.rows, result.columns), [result.rows, result.columns]);
   const chartable = useMemo(
-    () => canChart(result.columns, result.rows),
-    [result.columns, result.rows]
+    () => canChart(result.columns, polishedRows),
+    [result.columns, polishedRows]
   );
 
   const axes = useMemo(
     () =>
       result.chartRecommendation.x && result.chartRecommendation.y
         ? { x: result.chartRecommendation.x, y: result.chartRecommendation.y }
-        : inferAxes(result.columns, result.rows),
-    [result]
+        : inferAxes(result.columns, polishedRows),
+    [result.chartRecommendation.x, result.chartRecommendation.y, result.columns, polishedRows]
   );
 
   const llmType =
     result.chartRecommendation.type !== "none"
       ? (result.chartRecommendation.type as ChartType)
-      : "bar";
+      : inferChartType(result.columns, polishedRows);
 
   const [tab, setTab] = useState<Tab>("answer");
   const [showInsight, setShowInsight] = useState(false);
@@ -167,6 +228,12 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
               Export CSV
             </button>
           )}
+          <button
+            onClick={() => downloadMiniReport(result)}
+            className="text-xs px-2.5 py-1 rounded border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-400 transition-colors"
+          >
+            Mini Report
+          </button>
         </div>
       </div>
 
@@ -226,7 +293,7 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
         {tab === "chart" && (
           <div>
             <ChartTypeSwitcher value={chartType} onChange={setChartType} />
-            <ResultChart rows={result.rows} chart={activeChart} />
+            <ResultChart rows={polishedRows} chart={activeChart} />
           </div>
         )}
 
@@ -238,4 +305,19 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
       </div>
     </div>
   );
+}
+
+function polishRows(rows: Record<string, unknown>[], columns: string[]): Record<string, unknown>[] {
+  if (rows.length <= 1 || columns.length < 2) return rows;
+  const numeric = columns.filter((col) => isNumericCol(col, rows));
+  const categorical = columns.filter((col) => !isNumericCol(col, rows));
+  const y = numeric[0];
+  const x = categorical[0];
+  if (!x || !y) return rows;
+
+  const allDateLike = rows.slice(0, 20).every((row) => looksDateLike(row[x]));
+  if (allDateLike) {
+    return [...rows].sort((a, b) => String(a[x] ?? "").localeCompare(String(b[x] ?? ""))).slice(0, 60);
+  }
+  return [...rows].sort((a, b) => Number(b[y] ?? 0) - Number(a[y] ?? 0)).slice(0, 25);
 }

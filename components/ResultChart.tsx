@@ -23,12 +23,20 @@ export default function ResultChart({ rows, chart }: Props) {
   }));
 
   return (
-    <div className="w-full h-72">
+    <div className="w-full">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-gray-500">{chart.y}</p>
+          <p className="text-[11px] text-gray-400">Grouped by {chart.x}</p>
+        </div>
+        <p className="text-[11px] text-gray-400">{data.length} point{data.length === 1 ? "" : "s"}</p>
+      </div>
+      <div className="h-72">
       <ResponsiveContainer width="100%" height="100%">
         {chart.type === "line" ? (
           <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 24 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-            <XAxis dataKey="x" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" />
+            <XAxis dataKey="x" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" height={52} interval="preserveStartEnd" />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip />
             <Line type="monotone" dataKey="y" name={chart.y} stroke="#2563eb" strokeWidth={2} dot={false} />
@@ -44,13 +52,14 @@ export default function ResultChart({ rows, chart }: Props) {
         ) : (
           <BarChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 24 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-            <XAxis dataKey="x" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" />
+            <XAxis dataKey="x" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" height={52} interval={0} />
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip />
             <Bar dataKey="y" name={chart.y} fill="#2563eb" radius={[3, 3, 0, 0]} />
           </BarChart>
         )}
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }

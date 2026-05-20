@@ -6,18 +6,7 @@ import type { DatasetMeta, QueryResult, HistoryEntry } from "@/types";
 import SchemaPanel from "./SchemaPanel";
 import ResultsPanel from "./ResultsPanel";
 import DatasetSidebar from "./DatasetSidebar";
-
-function suggestedQuestions(columns: DatasetMeta["columns"]): string[] {
-  const numericCols = columns.filter((c) => c.type === "integer" || c.type === "real");
-  const dateCols = columns.filter((c) => c.type === "date");
-  const qs: string[] = [];
-  if (numericCols[0] && columns[0]) qs.push(`What is the total ${numericCols[0].originalName} by ${columns[0].originalName}?`);
-  if (numericCols[0]) qs.push(`Show the top 10 rows by ${numericCols[0].originalName}.`);
-  if (dateCols[0] && numericCols[0]) qs.push(`How does ${numericCols[0].originalName} change over ${dateCols[0].originalName}?`);
-  if (numericCols[0]) qs.push(`What is the average ${numericCols[0].originalName}?`);
-  qs.push("How many rows are in this dataset?");
-  return qs.slice(0, 5);
-}
+import { buildStarterAnalyses } from "@/lib/starter-questions";
 
 interface Props {
   initialDatasets: DatasetMeta[];
@@ -105,7 +94,7 @@ export default function Workspace({ initialDatasets, initialActiveId }: Props) {
     Object.entries(histories).map(([id, h]) => [id, h.length])
   );
 
-  const suggested = activeMeta ? suggestedQuestions(activeMeta.columns) : [];
+  const starters = activeMeta ? buildStarterAnalyses(activeMeta) : [];
 
   return (
     <div className="flex h-[calc(100vh-57px)]">
@@ -178,16 +167,29 @@ export default function Workspace({ initialDatasets, initialActiveId }: Props) {
                     {activeMeta.rowCount.toLocaleString()} rows · {activeMeta.columns.length} columns
                   </p>
 
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Try asking</p>
-                  <div className="space-y-2">
-                    {suggested.map((q) => (
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Auto Analysis</p>
+                    {starters[0] && (
                       <button
-                        key={q}
-                        onClick={() => submit(q)}
-                        className="flex items-center gap-3 w-full text-left text-sm px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-colors shadow-sm"
+                        onClick={() => submit(starters[0].question)}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-700"
                       >
-                        <span className="text-gray-300 shrink-0">→</span>
-                        {q}
+                        Run starter pack →
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {starters.map((starter) => (
+                      <button
+                        key={starter.question}
+                        onClick={() => submit(starter.question)}
+                        className="flex items-start gap-3 w-full text-left px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 text-gray-700 hover:text-blue-700 transition-colors shadow-sm"
+                      >
+                        <span className="text-gray-300 shrink-0 mt-0.5">→</span>
+                        <span>
+                          <span className="block text-sm font-medium">{starter.title}</span>
+                          <span className="block text-xs text-gray-400 mt-0.5">{starter.reason}</span>
+                        </span>
                       </button>
                     ))}
                   </div>
