@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadMeta } from "@/lib/meta";
 import { openDb, runQuery } from "@/lib/db";
 import { generateSQL } from "@/lib/llm";
 import { validateSQL, SQLValidationError } from "@/lib/sql-validator";
@@ -8,6 +7,7 @@ import { DatasetIdError } from "@/lib/dataset-id";
 import { INSIGHT_TIMEOUT_MS, LLM_TIMEOUT_MS, MAX_QUESTION_CHARS } from "@/lib/limits";
 import { rateLimit } from "@/lib/rate-limit";
 import { friendlyErrorMessage } from "@/lib/errors";
+import { loadMetaWithRestore } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Question is too long." }, { status: 400 });
     }
 
-    const meta = loadMeta(datasetId);
+    const meta = await loadMetaWithRestore(datasetId);
     if (!meta) return NextResponse.json({ error: "Dataset not found." }, { status: 404 });
 
     const llmResult = await withTimeout(

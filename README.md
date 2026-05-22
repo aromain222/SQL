@@ -26,6 +26,12 @@ Required environment variable:
 OPENAI_API_KEY=sk-...
 ```
 
+Recommended for deployed persistence:
+
+```bash
+BLOB_READ_WRITE_TOKEN=vercel_blob_rw_...
+```
+
 ## Main Commands
 
 ```bash
@@ -63,5 +69,4 @@ npm test         # backend safety tests
 
 ## Storage Note
 
-Local uploads are stored in `./uploads`. On Vercel or Lambda, writes go to `/tmp/uploads`, which is ephemeral. For durable production use, store `data.db` and `meta.json` in persistent object storage such as S3, Supabase Storage, or Vercel Blob.
-
+Local uploads are stored in `./uploads`. On Vercel or Lambda, writes go to `/tmp/uploads`, which is ephemeral. When `BLOB_READ_WRITE_TOKEN` is configured, uploads are also persisted to Vercel Blob and restored by dataset ID before workspace/query routes run.

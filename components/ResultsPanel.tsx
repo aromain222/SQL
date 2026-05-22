@@ -183,7 +183,6 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
       : inferChartType(result.columns, polishedRows);
 
   const [tab, setTab] = useState<Tab>("answer");
-  const [showInsight, setShowInsight] = useState(false);
   const [chartType, setChartType] = useState<ChartType>(llmType);
 
   const activeChart: ChartRecommendation = {
@@ -242,19 +241,9 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
           <div className="space-y-4">
             <p className="text-sm text-gray-700 leading-relaxed">{result.answer}</p>
             {result.insight && (
-              <div>
-                <button
-                  onClick={() => setShowInsight((v) => !v)}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                >
-                  <span>{showInsight ? "▾" : "▸"}</span>
-                  Explain this
-                </button>
-                {showInsight && (
-                  <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                    <p className="text-xs text-blue-900 leading-relaxed">{result.insight}</p>
-                  </div>
-                )}
+              <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-1">Result read</p>
+                <p className="text-sm text-blue-950 leading-relaxed">{result.insight}</p>
               </div>
             )}
             {result.rowCount === 0 && (

@@ -5,23 +5,42 @@ import Workspace from "@/components/Workspace";
 import type { DatasetMeta } from "@/types";
 import fs from "fs";
 import { DatasetIdError } from "@/lib/dataset-id";
+import { listStoredMetas, loadMetaWithRestore } from "@/lib/storage";
 
-function loadAllDatasets(): DatasetMeta[] {
+async function loadAllDatasets(requestedId?: string): Promise<DatasetMeta[]> {
   const uploadsDir = uploadsRoot();
-  if (!fs.existsSync(uploadsDir)) return [];
+  const byId = new Map<string, DatasetMeta>();
+
+  if (requestedId) {
+    const requested = await loadMetaWithRestore(requestedId).catch(() => null);
+    if (requested) byId.set(requested.id, requested);
+  }
+
+  if (!fs.existsSync(uploadsDir)) {
+    for (const meta of await listStoredMetas().catch(() => [])) {
+      if (!byId.has(meta.id)) byId.set(meta.id, meta);
+    }
+    return [...byId.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
   const dirs = fs.readdirSync(uploadsDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => d.name);
-  const datasets: DatasetMeta[] = [];
+
   for (const id of dirs) {
     try {
       const meta = loadMeta(id);
-      if (meta) datasets.push(meta);
+      if (meta) byId.set(meta.id, meta);
     } catch (err) {
       if (!(err instanceof DatasetIdError)) throw err;
     }
   }
-  return datasets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  for (const meta of await listStoredMetas().catch(() => [])) {
+    if (!byId.has(meta.id)) byId.set(meta.id, meta);
+  }
+
+  return [...byId.values()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export default async function WorkspacePage({
@@ -30,7 +49,7 @@ export default async function WorkspacePage({
   searchParams: Promise<{ id?: string }>;
 }) {
   const { id } = await searchParams;
-  const datasets = loadAllDatasets();
+  const datasets = await loadAllDatasets(id);
   const initialActiveId = id && datasets.find((d) => d.id === id) ? id : (datasets[0]?.id ?? null);
 
   return (

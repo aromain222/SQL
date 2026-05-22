@@ -1,16 +1,16 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { loadMeta } from "@/lib/meta";
 import { openDb, runQuery } from "@/lib/db";
 import WarningBanner from "@/components/WarningBanner";
 import { DatasetIdError } from "@/lib/dataset-id";
 import type { DatasetMeta } from "@/types";
+import { loadMetaWithRestore } from "@/lib/storage";
 
 export default async function DatasetPreview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   let meta: DatasetMeta | null;
   try {
-    meta = loadMeta(id);
+    meta = await loadMetaWithRestore(id);
   } catch (err) {
     if (err instanceof DatasetIdError) notFound();
     throw err;

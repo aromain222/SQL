@@ -9,6 +9,7 @@ import type { DatasetMeta } from "@/types";
 import { MAX_UPLOAD_BYTES } from "@/lib/limits";
 import { rateLimit } from "@/lib/rate-limit";
 import { friendlyErrorMessage } from "@/lib/errors";
+import { persistDataset } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -49,6 +50,9 @@ export async function POST(req: NextRequest) {
       warnings,
     };
     saveMeta(meta);
+    await persistDataset(meta).catch((err) => {
+      console.warn("[upload] durable storage persist failed:", err);
+    });
 
     return NextResponse.json({ datasetId: id, meta });
   } catch (err) {
