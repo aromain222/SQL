@@ -9,7 +9,7 @@ export const FINANCE_METRICS: MetricDefinition[] = [
       "Revenue is total income from sales or services before any costs are deducted — the top line of the income statement.",
     synonyms: [
       "revenue", "sales", "income", "gross revenue", "total sales", "total revenue",
-      "top line", "topline", "receipts", "turnover",
+      "top line", "topline", "receipts", "turnover", "total", "totals", "sum",
     ],
     requiredRoles: ["revenue"],
     optionalRoles: ["date", "customer_id", "segment", "product"],

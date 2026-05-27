@@ -33,7 +33,8 @@ Rules:
 - Only return SELECT queries. Never INSERT, UPDATE, DELETE, DROP, ALTER, or TRUNCATE.
 - Do not use multiple statements. Do not use comments in SQL.
 - Prefer simple, readable queries.
-- If the question cannot be answered with the available columns, set sql to "" and explain why.
+- If the question is ambiguous (e.g. "total", "revenue", "sales"), pick the most reasonable interpretation using the available columns, generate SQL for it, and record your assumption in the "assumptions" array. Do NOT refuse ambiguous questions.
+- Only set sql to "" if the question asks for data that is completely absent from the schema (e.g. asks for employee names when no such column exists).
 - Always return valid JSON matching the schema below.
 
 Table: "${tableName}"
