@@ -1,25 +1,38 @@
 import { DEFAULT_ROW_LIMIT, MAX_QUERY_ROWS } from "@/lib/limits";
 
-const BLOCKED = [
-  /\bINSERT\b/i, /\bUPDATE\b/i, /\bDELETE\b/i, /\bDROP\b/i,
-  /\bALTER\b/i, /\bTRUNCATE\b/i, /\bCREATE\b/i, /\bGRANT\b/i,
-  /\bREVOKE\b/i, /\bEXEC\b/i, /\bEXECUTE\b/i, /\bPRAGMA\b/i,
-  /\bATTACH\b/i, /\bDETACH\b/i, /\bLOAD\b/i, /\bVACUUM\b/i,
-  /\bREINDEX\b/i, /\bANALYZE\b/i, /\bWITH\b/i, /\bRECURSIVE\b/i,
-  /\bUNION\b/i, /\bINTERSECT\b/i, /\bEXCEPT\b/i, /\bJOIN\b/i,
-  /\bsqlite_master\b/i, /\bsqlite_schema\b/i,
-];
+// ─── blocked pattern groups ───────────────────────────────────────────────────
+// Grouped for specific error messages rather than one generic "blocked keyword"
 
-const AGGREGATE_FNS = /\b(COUNT|SUM|AVG|MIN|MAX|GROUP BY)\b/i;
-const LIMIT_PATTERN = /\bLIMIT\s+(\d+)\b/i;
+const BLOCKED_WRITE =
+  /\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|CREATE|GRANT|REVOKE|MERGE|REPLACE)\b/i;
+
+const BLOCKED_ADMIN =
+  /\b(EXEC|EXECUTE|PRAGMA|ATTACH|DETACH|LOAD|VACUUM|REINDEX|ANALYZE|EXPLAIN|RETURNING)\b/i;
+
+// CTEs, set operations, and cross-table reads
+const BLOCKED_MULTI_TABLE =
+  /\b(WITH|RECURSIVE|UNION|INTERSECT|EXCEPT|JOIN)\b/i;
+
+// SQLite internal / schema tables
+const BLOCKED_SYSTEM_TABLES =
+  /\b(sqlite_master|sqlite_schema|sqlite_temp_master|sqlite_sequence|sqlite_stat[0-9]*|sqlite_dbpage)\b/i;
+
+const LIMIT_PATTERN = /\bLIMIT\s+(-?\d+)\b/i;
+const AGGREGATE_FNS = /\b(COUNT|SUM|AVG|MIN|MAX|GROUP\s+BY)\b/i;
+
+// ─── public API ───────────────────────────────────────────────────────────────
 
 export class SQLValidationError extends Error {}
 
 export function validateSQL(sql: string, tableName: string, allowedColumns: string[]): string {
   let clean = sql.trim().replace(/;+$/, "").trim();
 
-  // Strip inline comments
+  // Strip inline and block comments before any keyword checks
   clean = clean.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "").trim();
+
+  // Check specific prohibited patterns BEFORE the SELECT guard so we can give
+  // specific, actionable error messages instead of the generic "Only SELECT..."
+  checkBlockedPatterns(clean);
 
   if (!clean.toUpperCase().startsWith("SELECT")) {
     throw new SQLValidationError("Only SELECT queries are allowed.");
@@ -29,35 +42,73 @@ export function validateSQL(sql: string, tableName: string, allowedColumns: stri
     throw new SQLValidationError("Multiple statements are not allowed.");
   }
 
-  for (const pattern of BLOCKED) {
-    if (pattern.test(clean)) {
-      throw new SQLValidationError(`Blocked keyword detected.`);
-    }
-  }
-
-  // Must reference the correct table
-  const tableRef = new RegExp(`\\b${escapeRegex(tableName)}\\b`, "i");
-  if (!tableRef.test(clean)) {
-    throw new SQLValidationError(`Query must reference the dataset table "${tableName}".`);
-  }
-
-  validateQuotedIdentifiers(clean, tableName, allowedColumns);
+  checkTableReference(clean, tableName);
+  validateAllQuotedIdentifiers(clean, tableName, allowedColumns);
   clean = enforceLimit(clean);
 
   return clean;
 }
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// ─── internal helpers ─────────────────────────────────────────────────────────
+
+function checkBlockedPatterns(sql: string): void {
+  if (BLOCKED_WRITE.test(sql)) {
+    throw new SQLValidationError(
+      "Write operations are not permitted. Only SELECT queries are allowed on financial data."
+    );
+  }
+  if (BLOCKED_ADMIN.test(sql)) {
+    throw new SQLValidationError(
+      "Administrative statements are not permitted. EXPLAIN, PRAGMA, and similar commands are blocked."
+    );
+  }
+  if (BLOCKED_MULTI_TABLE.test(sql)) {
+    throw new SQLValidationError(
+      "Set operations, CTEs (WITH), and JOIN are not permitted. Only single-table SELECT queries are allowed."
+    );
+  }
+  if (BLOCKED_SYSTEM_TABLES.test(sql)) {
+    throw new SQLValidationError(
+      "Access to internal database tables (sqlite_master, sqlite_schema, etc.) is not permitted."
+    );
+  }
 }
 
-function validateQuotedIdentifiers(sql: string, tableName: string, allowedColumns: string[]): void {
-  const allowed = new Set([tableName.toLowerCase(), ...allowedColumns.map((col) => col.toLowerCase())]);
-  const matches = sql.matchAll(/"([^"]+)"/g);
-  for (const match of matches) {
-    const identifier = match[1]?.toLowerCase();
-    if (identifier && !allowed.has(identifier)) {
-      throw new SQLValidationError(`Unknown column or table "${match[1]}".`);
+function checkTableReference(sql: string, tableName: string): void {
+  const tableRef = new RegExp(`\\b${escapeRegex(tableName)}\\b`, "i");
+  if (!tableRef.test(sql)) {
+    throw new SQLValidationError(
+      `Query must reference the dataset table "${tableName}".`
+    );
+  }
+}
+
+/**
+ * Validates all identifier quoting styles — double-quotes, backticks, and
+ * square brackets — against the known column whitelist.
+ */
+function validateAllQuotedIdentifiers(
+  sql: string,
+  tableName: string,
+  allowedColumns: string[]
+): void {
+  const allowed = new Set([
+    tableName.toLowerCase(),
+    ...allowedColumns.map((c) => c.toLowerCase()),
+  ]);
+
+  const checks: Array<{ pattern: RegExp; label: (id: string) => string }> = [
+    { pattern: /"([^"]+)"/g,   label: (id) => `"${id}"` },
+    { pattern: /`([^`]+)`/g,   label: (id) => `\`${id}\`` },
+    { pattern: /\[([^\]]+)\]/g, label: (id) => `[${id}]` },
+  ];
+
+  for (const { pattern, label } of checks) {
+    for (const match of sql.matchAll(pattern)) {
+      const identifier = match[1]?.toLowerCase();
+      if (identifier && !allowed.has(identifier)) {
+        throw new SQLValidationError(`Unknown column or table ${label(match[1] ?? "")}.`);
+      }
     }
   }
 }
@@ -71,9 +122,13 @@ function enforceLimit(sql: string): string {
 
   const requested = Number(match[1]);
   if (!Number.isFinite(requested) || requested < 1) {
-    throw new SQLValidationError("LIMIT must be a positive number.");
+    throw new SQLValidationError("LIMIT must be a positive integer.");
   }
   if (requested <= MAX_QUERY_ROWS) return sql;
 
   return sql.replace(LIMIT_PATTERN, `LIMIT ${MAX_QUERY_ROWS}`);
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

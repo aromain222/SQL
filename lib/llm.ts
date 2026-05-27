@@ -10,16 +10,21 @@ function getClient() {
 export async function generateSQL(
   question: string,
   tableName: string,
-  columns: ColumnMeta[]
+  columns: ColumnMeta[],
+  promptAdditions?: string
 ): Promise<LLMResponse> {
   const schema = columns
     .map(
       (c) =>
         `  "${c.sanitizedName}" ${c.type.toUpperCase()}${
-          c.sampleValues.length ? ` -- e.g. ${c.sampleValues.slice(0, 3).map((v) => JSON.stringify(v)).join(", ")}` : ""
+          c.sampleValues.length
+            ? ` -- e.g. ${c.sampleValues.slice(0, 3).map((v) => JSON.stringify(v)).join(", ")}`
+            : ""
         }`
     )
     .join("\n");
+
+  const contextSection = promptAdditions ? `\n\n${promptAdditions}\n` : "";
 
   const systemPrompt = `You are a SQL expert. You generate safe SQLite SELECT queries.
 
@@ -34,7 +39,7 @@ Rules:
 Table: "${tableName}"
 Columns:
 ${schema}
-
+${contextSection}
 Return ONLY this JSON (no markdown, no explanation outside JSON):
 {
   "sql": "SELECT ...",
@@ -43,7 +48,8 @@ Return ONLY this JSON (no markdown, no explanation outside JSON):
     "type": "bar | line | pie | none",
     "x": "column name or null",
     "y": "column name or null"
-  }
+  },
+  "assumptions": ["assumption 1", "assumption 2"]
 }`;
 
   const response = await getClient().chat.completions.create({
@@ -58,7 +64,7 @@ Return ONLY this JSON (no markdown, no explanation outside JSON):
 
   const content = response.choices[0]?.message?.content ?? "{}";
 
-  let parsed: Partial<LLMResponse>;
+  let parsed: Partial<LLMResponse> & { assumptions?: unknown };
   try {
     parsed = JSON.parse(content);
   } catch {
@@ -67,6 +73,10 @@ Return ONLY this JSON (no markdown, no explanation outside JSON):
 
   const chartRecommendation = parsed.chartRecommendation;
   const allowedChartTypes = new Set(["bar", "line", "pie", "none"]);
+
+  const assumptions = Array.isArray(parsed.assumptions)
+    ? (parsed.assumptions as unknown[]).filter((a): a is string => typeof a === "string")
+    : [];
 
   return {
     sql: typeof parsed.sql === "string" ? parsed.sql : "",
@@ -78,5 +88,6 @@ Return ONLY this JSON (no markdown, no explanation outside JSON):
       allowedChartTypes.has(String(chartRecommendation.type))
         ? parsed.chartRecommendation!
         : { type: "none" },
+    assumptions,
   };
 }

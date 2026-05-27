@@ -36,10 +36,30 @@ export interface ChartRecommendation {
   y?: string;
 }
 
+export interface FinanceAnalysis {
+  direct_answer: string;
+  key_number: string;
+  driver_explanation: string;
+  chart_hint: string;
+  assumptions: string[];
+  follow_up_questions: string[];
+}
+
 export interface LLMResponse {
   sql: string;
   explanation: string;
   chartRecommendation: ChartRecommendation;
+  assumptions: string[];
+}
+
+export interface QueryMetadata {
+  intent: string;
+  intent_label: string;
+  metrics_used: string[];
+  tables_used: string[];
+  assumptions: string[];
+  missing_fields: string[];
+  confidence: number;
 }
 
 export interface QueryResult {
@@ -49,7 +69,12 @@ export interface QueryResult {
   columns: string[];
   chartRecommendation: ChartRecommendation;
   rowCount: number;
+  /** Structured analyst explanation — present for all non-generic intents */
+  analysis?: FinanceAnalysis;
+  /** Plain-text insight — present for generic_db queries */
   insight?: string;
+  semanticWarnings?: string[];
+  metadata?: QueryMetadata;
 }
 
 export interface HistoryEntry {

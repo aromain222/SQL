@@ -6,4 +6,6 @@ export const MAX_QUERY_ROWS = 500;
 export const MAX_QUESTION_CHARS = 1000;
 export const LLM_TIMEOUT_MS = 20_000;
 export const INSIGHT_TIMEOUT_MS = 6_000;
+/** Maximum wall-clock time allowed for a single SQL query execution */
+export const QUERY_TIMEOUT_MS = 5_000;
 

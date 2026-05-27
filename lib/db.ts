@@ -9,13 +9,20 @@ export function getDbPath(datasetId: string): string {
 }
 
 export function openDb(datasetId: string, options: Database.Options = {}): Database.Database {
-  return new Database(getDbPath(datasetId), {
-    timeout: 1000,
+  const db = new Database(getDbPath(datasetId), {
+    timeout: 3000, // busy_timeout: how long to wait on a locked DB
     ...options,
   });
+
+  // For readonly connections, enforce query_only at the connection level
+  // so that no statement executed on this connection can mutate the database.
+  if (options.readonly) {
+    db.pragma("query_only = ON");
+  }
+
+  return db;
 }
 
-// dates stored as TEXT in SQLite for maximum flexibility
 const SQL_TYPE: Record<ColumnMeta["type"], string> = {
   text: "TEXT",
   integer: "INTEGER",
@@ -43,7 +50,7 @@ export function createTable(
         if (raw === "" || raw === null) return null;
         if (c.type === "integer") { const n = parseInt(raw, 10); return isNaN(n) ? null : n; }
         if (c.type === "real") { const n = parseFloat(raw); return isNaN(n) ? null : n; }
-        return raw; // text / date
+        return raw;
       });
       insert.run(values);
     }
@@ -56,7 +63,10 @@ export function runQuery(
   db: Database.Database,
   sql: string
 ): { rows: Record<string, unknown>[]; columns: string[] } {
+  // query_only is already set on the connection if opened readonly (openDb).
+  // Set it again here as a defence-in-depth belt-and-suspenders measure.
   db.pragma("query_only = ON");
+
   const stmt = db.prepare(sql);
   const rows = stmt.all() as Record<string, unknown>[];
   const columns =

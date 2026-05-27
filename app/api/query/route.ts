@@ -8,6 +8,9 @@ import { INSIGHT_TIMEOUT_MS, LLM_TIMEOUT_MS, MAX_QUESTION_CHARS } from "@/lib/li
 import { rateLimit } from "@/lib/rate-limit";
 import { friendlyErrorMessage } from "@/lib/errors";
 import { loadMetaWithRestore } from "@/lib/storage";
+import { routeIntent } from "@/lib/intent";
+import { generateAnalysis } from "@/lib/analyst";
+import type { QueryMetadata } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -25,7 +28,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "datasetId and question are required." }, { status: 400 });
     }
 
-    // Sanitize question length (prompt injection mitigation)
     if (question.length > MAX_QUESTION_CHARS) {
       return NextResponse.json({ error: "Question is too long." }, { status: 400 });
     }
@@ -33,11 +35,34 @@ export async function POST(req: NextRequest) {
     const meta = await loadMetaWithRestore(datasetId);
     if (!meta) return NextResponse.json({ error: "Dataset not found." }, { status: 404 });
 
+    const intentResult = routeIntent(question, meta.columns);
+
     const llmResult = await withTimeout(
-      generateSQL(question, meta.tableName, meta.columns),
+      generateSQL(question, meta.tableName, meta.columns, intentResult.promptAdditions || undefined),
       LLM_TIMEOUT_MS,
       "SQL generation timed out. Try a simpler question.",
     );
+
+    // Fabrication guard: if required columns were missing but LLM still returned SQL,
+    // flag it so the UI can warn the finance team.
+    const fabricationWarning =
+      intentResult.missingFields.length > 0 && llmResult.sql
+        ? `This ${intentResult.intentLabel} requires "${intentResult.missingFields.join('", "')}" which could not be mapped from the schema. The result may be incomplete or approximate — verify before use.`
+        : null;
+
+    const effectiveWarnings = fabricationWarning
+      ? [fabricationWarning, ...intentResult.warnings]
+      : intentResult.warnings;
+
+    const baseMetadata: QueryMetadata = {
+      intent: intentResult.intent,
+      intent_label: intentResult.intentLabel,
+      metrics_used: intentResult.metricsUsed,
+      tables_used: [meta.tableName],
+      assumptions: llmResult.assumptions,
+      missing_fields: intentResult.missingFields,
+      confidence: intentResult.confidence,
+    };
 
     if (!llmResult.sql) {
       return NextResponse.json({
@@ -47,6 +72,8 @@ export async function POST(req: NextRequest) {
         columns: [],
         chartRecommendation: { type: "none" },
         rowCount: 0,
+        semanticWarnings: effectiveWarnings,
+        metadata: baseMetadata,
       });
     }
 
@@ -73,11 +100,23 @@ export async function POST(req: NextRequest) {
         ? "No rows matched your query."
         : llmResult.explanation;
 
-    const insight = await withTimeout(
-      generateInsight(question, rows, columns, meta.columns),
-      INSIGHT_TIMEOUT_MS,
-      "",
-    ).catch(() => "");
+    const isFinanceIntent = intentResult.intent !== "generic_db";
+
+    const analysis = isFinanceIntent
+      ? await withTimeout(
+          generateAnalysis(question, safeSQL, rows, columns, intentResult),
+          INSIGHT_TIMEOUT_MS,
+          "Analysis timed out.",
+        ).catch(() => null)
+      : null;
+
+    const insight = !isFinanceIntent
+      ? await withTimeout(
+          generateInsight(question, rows, columns, meta.columns, intentResult.semanticContext),
+          INSIGHT_TIMEOUT_MS,
+          "",
+        ).catch(() => "")
+      : undefined;
 
     return NextResponse.json({
       answer,
@@ -86,7 +125,10 @@ export async function POST(req: NextRequest) {
       columns,
       chartRecommendation: llmResult.chartRecommendation,
       rowCount: rows.length,
-      insight,
+      ...(analysis !== null && { analysis }),
+      ...(insight !== undefined && insight !== "" && { insight }),
+      semanticWarnings: effectiveWarnings,
+      metadata: baseMetadata,
     });
   } catch (err) {
     if (err instanceof DatasetIdError) {

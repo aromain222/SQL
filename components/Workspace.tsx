@@ -199,7 +199,7 @@ export default function Workspace({ initialDatasets, initialActiveId }: Props) {
 
               {!loading && activeResult && (
                 <div className="max-w-3xl mx-auto space-y-4">
-                  <ResultsPanel result={activeResult} />
+                  <ResultsPanel result={activeResult} onFollowUp={(q) => { setQuestion(q); submit(q); }} />
                   {activeHistory.length > 0 && (
                     <p className="text-xs text-gray-400 text-center">
                       Ask another question below, or pick a previous one from the history bar above.

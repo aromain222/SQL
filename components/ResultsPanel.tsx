@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import type { QueryResult, ChartRecommendation } from "@/types";
+import type { FinanceAnalysis, QueryResult, ChartRecommendation } from "@/types";
 import ResultChart from "./ResultChart";
 
 type Tab = "answer" | "table" | "chart" | "sql";
@@ -30,6 +30,7 @@ function exportCSV(rows: Record<string, unknown>[], columns: string[], filename:
 }
 
 function downloadMiniReport(result: QueryResult) {
+  const analysis = result.analysis;
   const escapeHtml = (value: unknown) =>
     String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -40,6 +41,15 @@ function downloadMiniReport(result: QueryResult) {
   const table = previewRows.length
     ? `<table><thead><tr>${result.columns.map((col) => `<th>${escapeHtml(col)}</th>`).join("")}</tr></thead><tbody>${previewRows.map((row) => `<tr>${result.columns.map((col) => `<td>${escapeHtml(row[col])}</td>`).join("")}</tr>`).join("")}</tbody></table>`
     : "<p>No rows returned.</p>";
+  const analysisSection = analysis
+    ? `<h2>Key Metric</h2><p><strong>${escapeHtml(analysis.key_number)}</strong></p>
+       <h2>Analysis</h2><p>${escapeHtml(analysis.direct_answer)}</p>
+       ${analysis.driver_explanation ? `<p>${escapeHtml(analysis.driver_explanation)}</p>` : ""}
+       ${analysis.assumptions.length ? `<h2>Assumptions</h2><ul>${analysis.assumptions.map((a) => `<li>${escapeHtml(a)}</li>`).join("")}</ul>` : ""}
+       ${analysis.follow_up_questions.length ? `<h2>Suggested Follow-ups</h2><ul>${analysis.follow_up_questions.map((q) => `<li>${escapeHtml(q)}</li>`).join("")}</ul>` : ""}`
+    : result.insight
+      ? `<h2>Insight</h2><p>${escapeHtml(result.insight)}</p>`
+      : "";
   const html = `<!doctype html>
 <html>
 <head>
@@ -50,6 +60,8 @@ function downloadMiniReport(result: QueryResult) {
     h1 { font-size: 22px; margin-bottom: 8px; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #6b7280; margin-top: 24px; }
     p { line-height: 1.5; }
+    ul { padding-left: 20px; }
+    li { margin: 4px 0; font-size: 13px; }
     pre { background: #f3f4f6; padding: 12px; border-radius: 8px; white-space: pre-wrap; }
     table { border-collapse: collapse; width: 100%; font-size: 12px; }
     th, td { border: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; }
@@ -57,9 +69,9 @@ function downloadMiniReport(result: QueryResult) {
   </style>
 </head>
 <body>
-  <h1>Mini Analysis Report</h1>
+  <h1>Analysis Report</h1>
   <p>${escapeHtml(result.answer)}</p>
-  ${result.insight ? `<h2>Insight</h2><p>${escapeHtml(result.insight)}</p>` : ""}
+  ${analysisSection}
   <h2>Result Preview</h2>
   ${table}
   <h2>SQL</h2>
@@ -68,10 +80,10 @@ function downloadMiniReport(result: QueryResult) {
 </html>`;
   const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "analysis-report.html";
-  a.click();
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "analysis-report.html";
+  link.click();
   URL.revokeObjectURL(url);
 }
 
@@ -160,9 +172,81 @@ function ChartTypeSwitcher({
   );
 }
 
+// ─── analyst view ────────────────────────────────────────────────────────────
+
+function AnalystView({
+  analysis,
+  onFollowUp,
+}: {
+  analysis: FinanceAnalysis;
+  onFollowUp?: (q: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-800 leading-relaxed font-medium">{analysis.direct_answer}</p>
+
+      {analysis.key_number && (
+        <div className="inline-flex items-center gap-2.5 px-3.5 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+          <span className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Key metric</span>
+          <span className="text-sm font-semibold text-blue-900">{analysis.key_number}</span>
+        </div>
+      )}
+
+      {analysis.driver_explanation && (
+        <p className="text-sm text-gray-600 leading-relaxed">{analysis.driver_explanation}</p>
+      )}
+
+      {analysis.chart_hint && (
+        <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          <span className="shrink-0 mt-px">↗</span>
+          <span>{analysis.chart_hint}</span>
+        </div>
+      )}
+
+      {analysis.assumptions.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Assumptions</p>
+          <ul className="space-y-0.5">
+            {analysis.assumptions.map((a, i) => (
+              <li key={i} className="flex gap-1.5 text-xs text-gray-500">
+                <span className="shrink-0">•</span>
+                <span>{a}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {analysis.follow_up_questions.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ask next</p>
+          <div className="flex flex-wrap gap-2">
+            {analysis.follow_up_questions.map((q, i) => (
+              <button
+                key={i}
+                onClick={() => onFollowUp?.(q)}
+                disabled={!onFollowUp}
+                className="text-xs px-3 py-1.5 rounded-full border border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors text-left disabled:cursor-default disabled:opacity-60"
+              >
+                → {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── main component ───────────────────────────────────────────────────────────
 
-export default function ResultsPanel({ result }: { result: QueryResult }) {
+export default function ResultsPanel({
+  result,
+  onFollowUp,
+}: {
+  result: QueryResult;
+  onFollowUp?: (q: string) => void;
+}) {
   const polishedRows = useMemo(() => polishRows(result.rows, result.columns), [result.rows, result.columns]);
   const chartable = useMemo(
     () => canChart(result.columns, polishedRows),
@@ -239,15 +323,35 @@ export default function ResultsPanel({ result }: { result: QueryResult }) {
       <div className="p-4">
         {tab === "answer" && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-700 leading-relaxed">{result.answer}</p>
-            {result.insight && (
-              <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-1">Result read</p>
-                <p className="text-sm text-blue-950 leading-relaxed">{result.insight}</p>
+            {result.semanticWarnings && result.semanticWarnings.length > 0 && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-1.5">Data warnings</p>
+                <ul className="space-y-1">
+                  {result.semanticWarnings.map((w, i) => (
+                    <li key={i} className="flex gap-1.5 text-xs text-amber-900">
+                      <span className="shrink-0">⚠</span>
+                      <span>{w}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
-            {result.rowCount === 0 && (
-              <p className="text-xs text-gray-400">No rows matched.</p>
+
+            {result.analysis ? (
+              <AnalystView analysis={result.analysis} onFollowUp={onFollowUp} />
+            ) : (
+              <>
+                <p className="text-sm text-gray-700 leading-relaxed">{result.answer}</p>
+                {result.insight && (
+                  <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider mb-1">Insight</p>
+                    <p className="text-sm text-blue-950 leading-relaxed">{result.insight}</p>
+                  </div>
+                )}
+                {result.rowCount === 0 && (
+                  <p className="text-xs text-gray-400">No rows matched.</p>
+                )}
+              </>
             )}
           </div>
         )}
